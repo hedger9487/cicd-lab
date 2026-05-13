@@ -43,7 +43,7 @@ jobs:
 
       - name: Publish test results
         if: ${{ always() && hashFiles('junit.xml') != '' }}
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v3.0.0
         with:
           name: Vitest Results
           path: junit.xml
