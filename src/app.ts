@@ -1,5 +1,7 @@
 import Fastify, { FastifyServerOptions } from 'fastify';
 
+const homeworkFailureDemo: string = 14922138;
+
 export function buildApp(options: FastifyServerOptions = {}) {
   const app = Fastify({
     logger: options.logger ?? true,
