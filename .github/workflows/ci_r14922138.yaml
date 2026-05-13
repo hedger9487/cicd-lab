@@ -33,18 +33,12 @@ jobs:
         run: npm ci
 
       - name: TypeScript typecheck
-        id: typecheck
-        continue-on-error: true
         run: npm run typecheck
 
       - name: Prettier check
-        id: prettier
-        continue-on-error: true
         run: npm run format:check
 
       - name: Test with JUnit report
-        id: tests
-        continue-on-error: true
         run: npm test -- --reporter=default --reporter=junit --outputFile=junit.xml
 
       - name: Publish test results
@@ -62,12 +56,3 @@ jobs:
         with:
           name: vitest-junit-report
           path: junit.xml
-
-      - name: Fail when any check failed
-        if: ${{ always() && (steps.typecheck.outcome == 'failure' || steps.prettier.outcome == 'failure' || steps.tests.outcome == 'failure') }}
-        run: |
-          echo "One or more CI checks failed."
-          echo "typecheck: ${{ steps.typecheck.outcome }}"
-          echo "prettier: ${{ steps.prettier.outcome }}"
-          echo "tests: ${{ steps.tests.outcome }}"
-          exit 1
