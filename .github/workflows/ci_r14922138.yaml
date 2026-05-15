@@ -41,6 +41,69 @@ jobs:
       - name: Test with JUnit report
         run: npm test -- --reporter=default --reporter=junit --outputFile=junit.xml
 
+      - name: Add test summary
+        if: ${{ always() && hashFiles('junit.xml') != '' }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const xml = fs.readFileSync('junit.xml', 'utf8');
+          const summaryPath = process.env.GITHUB_STEP_SUMMARY;
+
+          function attrs(tag) {
+            return Object.fromEntries(
+              [...tag.matchAll(/([A-Za-z_:][-A-Za-z0-9_:.]*)="([^"]*)"/g)].map(([, key, value]) => [
+                key,
+                value.replaceAll('&quot;', '"').replaceAll('&gt;', '>').replaceAll('&lt;', '<').replaceAll('&amp;', '&')
+              ])
+            );
+          }
+
+          function ms(seconds) {
+            return `${Math.round(Number(seconds || 0) * 1000)}ms`;
+          }
+
+          const suiteTags = [...xml.matchAll(/<testsuite\b[^>]*>/g)].map(([tag]) => attrs(tag));
+          const caseTags = [...xml.matchAll(/<testcase\b[^>]*>/g)].map(([tag]) => attrs(tag));
+          const totals = attrs(xml.match(/<testsuites\b[^>]*>/)?.[0] || suiteTags[0] || '');
+          const tests = Number(totals.tests || 0);
+          const failed = Number(totals.failures || 0) + Number(totals.errors || 0);
+          const skipped = Number(totals.skipped || 0);
+          const passed = Math.max(tests - failed - skipped, 0);
+          const badge = failed === 0 ? '✅' : '❌';
+
+          const lines = [
+            '## Typecheck, format, and test summary',
+            '',
+            `# ${passed} passed, ${failed} failed and ${skipped} skipped`,
+            '',
+            '| Report | Passed | Failed | Skipped | Time |',
+            '| --- | ---: | ---: | ---: | ---: |',
+            `| junit.xml | ${passed} ${failed === 0 ? '✅' : ''} | ${failed || ''} | ${skipped || ''} | ${ms(totals.time)} |`,
+            '',
+            `## ${badge} junit.xml`,
+            '',
+            `${tests} tests were completed in ${ms(totals.time)} with ${passed} passed, ${failed} failed and ${skipped} skipped.`,
+            '',
+            '| Test suite | Passed | Failed | Skipped | Time |',
+            '| --- | ---: | ---: | ---: | ---: |',
+            ...suiteTags.map((suite) => {
+              const suiteTests = Number(suite.tests || 0);
+              const suiteFailed = Number(suite.failures || 0) + Number(suite.errors || 0);
+              const suiteSkipped = Number(suite.skipped || 0);
+              const suitePassed = Math.max(suiteTests - suiteFailed - suiteSkipped, 0);
+              return `| ${suite.name} | ${suitePassed} ${suiteFailed === 0 ? '✅' : ''} | ${suiteFailed || ''} | ${suiteSkipped || ''} | ${ms(suite.time)} |`;
+            }),
+            '',
+            ...suiteTags.map((suite) => {
+              const cases = caseTags.filter((testCase) => testCase.classname === suite.name);
+              return [`## ✅ ${suite.name}`, '', ...cases.map((testCase) => `- ✅ ${testCase.name}`), ''].join('\n');
+            })
+          ];
+
+          fs.appendFileSync(summaryPath, `${lines.join('\n')}\n`);
+          NODE
+
       - name: Publish test results
         if: ${{ always() && hashFiles('junit.xml') != '' }}
         uses: dorny/test-reporter@v3.0.0
